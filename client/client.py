@@ -46,7 +46,7 @@ async def handle_receiving(reader: asyncio.StreamReader):
 
             msg = data.decode()
             CURRENT_USERS = int(msg[:3])
-            RECV_MSG_BUFFER.append(msg[4:])
+            RECV_MSG_BUFFER.append(msg[3:])
 
             system("clear")
             await handle_printing()
