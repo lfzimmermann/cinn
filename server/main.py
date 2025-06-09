@@ -1,4 +1,6 @@
 import asyncio
+import ssl
+import re
 from rich import print
 
 """
@@ -7,11 +9,15 @@ from rich import print
     `writer` is an asyncio.StreamWriter for writing data.
 """
 writers = set()
+users = dict()
+CERT_FILE = 'server.crt'
+KEY_FILE = 'server.key'
 
 async def handle_client(reader, writer):
     addr = writer.get_extra_info('peername')
     print(f"Accepted connection from {addr}")
     writers.add(writer)
+    users[(addr[0], addr[1])] = "None"
     print(f"Currently connected clients: {[writer.get_extra_info('peername') for writer in writers]}")
     try:
         while True:
@@ -24,13 +30,19 @@ async def handle_client(reader, writer):
 
             message = data.decode().strip()
             print(f"Received from {addr}: {message!r}")
+            recv_nick = re.search("^/nick", message)
+            if (recv_nick):
+                nick = message[recv_nick.end():]
+                users[(addr[0], addr[1])] = nick.strip()
+
             currently_online_clients = f"{len(list(writers)):03}".encode()
-            broadcast_message = f"[{addr[0]}:{addr[1]}] {message}".encode()
+            broadcast_message = f"[{users[(addr[0], addr[1])]}] {message}".encode()
             send_tasks = []
 
             for client_writer in list(writers):
                 try:
                     client_writer.write(currently_online_clients)
+                    await client_writer.drain()
                     client_writer.write(broadcast_message)
                     send_tasks.append(client_writer.drain())
                 except Exception as e:
@@ -61,6 +73,20 @@ async def handle_client(reader, writer):
 async def main():
     host = "0.0.0.0"
     port = 8080
+
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    try:
+        ssl_context.load_cert_chain(CERT_FILE, KEY_FILE)
+    except FileNotFoundError:
+        print(f"Error: Certificate file '{CERT_FILE}' or key file '{KEY_FILE}' not found.")
+        print("Please generate them using: ")
+        print("  openssl genrsa -out server.key 2048")
+        print("  openssl req -new -x509 -key server.key -out server.crt -days 365")
+        return
+    except ssl.SSLError as e:
+        print(f"Error loading SSL certificate/key: {e}")
+        print("Ensure the key is not password-protected or provide a password.")
+        return
 
     server = await asyncio.start_server(
             handle_client, host, port

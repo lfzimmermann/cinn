@@ -45,7 +45,11 @@ async def handle_receiving(reader: asyncio.StreamReader):
                 return
 
             msg = data.decode()
-            CURRENT_USERS = int(msg[:3])
+            try:
+                CURRENT_USERS = int(msg[:3])
+            except Exception as e:
+                print(f"getting current users failed! {e!r}")
+                CURRENT_USERS = 0
             RECV_MSG_BUFFER.append(msg[3:])
 
             system("clear")
