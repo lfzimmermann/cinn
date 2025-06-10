@@ -10,8 +10,9 @@ from rich import print
 """
 writers = set()
 users = dict()
-CERT_FILE = 'server.crt'
-KEY_FILE = 'server.key'
+# TODO: create new crt and key and add to .gitignore
+# CERT_FILE = 'server.crt'
+# KEY_FILE = 'server.key'
 
 async def handle_client(reader, writer):
     addr = writer.get_extra_info('peername')
@@ -35,18 +36,17 @@ async def handle_client(reader, writer):
                 nick = message[recv_nick.end():]
                 users[(addr[0], addr[1])] = nick.strip()
 
-            currently_online_clients = f"{len(list(writers)):03}".encode()
-            broadcast_message = f"[{users[(addr[0], addr[1])]}] {message}".encode()
+            currently_online_clients = f"{len(list(writers)):03}"
+            broadcast_message = f"[{users[(addr[0], addr[1])]}] {message}"
+            message = f"{currently_online_clients}{broadcast_message}".encode()
             send_tasks = []
 
             for client_writer in list(writers):
                 try:
-                    client_writer.write(currently_online_clients)
-                    await client_writer.drain()
-                    client_writer.write(broadcast_message)
+                    client_writer.write(message)
                     send_tasks.append(client_writer.drain())
                 except Exception as e:
-                    print(f"Error sending to client {client_writer.get_extra_info('peername')}: {e}")
+                    print(f"Error sending to client [{users[addr[0], addr[1]]}]{client_writer.get_extra_info('peername')}: {e}")
                     # TODO remove client_writer here if error signalizes more significant error
 
             if send_tasks:
@@ -74,19 +74,19 @@ async def main():
     host = "0.0.0.0"
     port = 8080
 
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    try:
-        ssl_context.load_cert_chain(CERT_FILE, KEY_FILE)
-    except FileNotFoundError:
-        print(f"Error: Certificate file '{CERT_FILE}' or key file '{KEY_FILE}' not found.")
-        print("Please generate them using: ")
-        print("  openssl genrsa -out server.key 2048")
-        print("  openssl req -new -x509 -key server.key -out server.crt -days 365")
-        return
-    except ssl.SSLError as e:
-        print(f"Error loading SSL certificate/key: {e}")
-        print("Ensure the key is not password-protected or provide a password.")
-        return
+    # ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    # try:
+    #     ssl_context.load_cert_chain(CERT_FILE, KEY_FILE)
+    # except FileNotFoundError:
+    #     print(f"Error: Certificate file '{CERT_FILE}' or key file '{KEY_FILE}' not found.")
+    #     print("Please generate them using: ")
+    #     print("  openssl genrsa -out server.key 2048")
+    #     print("  openssl req -new -x509 -key server.key -out server.crt -days 365")
+    #     return
+    # except ssl.SSLError as e:
+    #     print(f"Error loading SSL certificate/key: {e}")
+    #     print("Ensure the key is not password-protected or provide a password.")
+    #     return
 
     server = await asyncio.start_server(
             handle_client, host, port
